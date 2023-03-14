@@ -1,4 +1,4 @@
-## N741 - Spring2022: Regression - Linear and Logistic
+## N741 - Spring 2023: Regression - Linear and Logistic
 
 ### Linear Regression
 
