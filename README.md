@@ -2,8 +2,8 @@
 
 ### Linear Regression
 
-* [Intro to Linear Regression](https://melindahiggins2000.github.io/N741_Spring2022_Regression/Regression_Spring2022.html)
-* [Rmarkdown file](https://github.com/melindahiggins2000/N741_Spring2022_Regression/blob/main/Regression_Spring2022.Rmd)
+* [Intro to Linear Regression](https://melindahiggins2000.github.io/N741_Spring2022_Regression/Regression_Spring2023.html)
+* [Rmarkdown file](https://github.com/melindahiggins2000/N741_Spring2022_Regression/blob/main/Regression_Spring2023.Rmd)
 
 ### Logistic Regression
 
