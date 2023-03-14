@@ -1,0 +1,567 @@
+---
+title: "Linear Regression"
+author: "Melinda Higgins and Vicki Hertzberg"
+date: "3/14/2023"
+output:
+  html_document: default
+  pdf_document: default
+editor_options:
+  chunk_output_type: console
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(error = FALSE)
+knitr::opts_chunk$set(warning = FALSE)
+knitr::opts_chunk$set(message = FALSE)
+```
+
+## Linear Regression
+
+We start first by loading up the following packages: `HistData`, `car`, and `stargazer`.
+
+```{r}
+#load up necessary packages
+library(HistData)
+library(car)
+library(stargazer)
+```
+
+## Understanding Linear Regresson:  The Univariate Case
+
+We want to determine a straight line that determines the relationship between x, some independent (predictor) variable, and y, an outcome or dependent variable.
+
+You will recall from high school algebra that the equation for a straight line is:
+
+\begin{equation}
+  y = \alpha + \beta x
+\end{equation}
+
+where $\alpha$ is the y-intercept (the value of y when x=0)
+and $\beta$ is the slope of the line (the amount that y will increase by with every unit increase in x).
+
+A classic example is the height data from Sir Francis Galton, a 19th century statistician. He collected height data on 905 children born to 205 parents. The dataset is part of the R package HistData, which contains Data Sets from the History of Statistics and Data Visualization. The variables are the height of the child (as an adult) and the mid-parent height, that is the average of the parents' heights.
+
+If you go to the Environment tab, you will see the Global Environment. Click on "package:HistData" and you will see the Galton dataset.
+
+Let's see what is in there:
+
+```{r}
+# see what is in the Galton dataset
+summary(Galton)
+```
+
+## Simple linear regression model
+
+### Split data into training and testing
+
+Let's develop the model on ~90% of the dataset, then test it on the remaining ~10% of the data. In the datascience world, we call that first step "training" the model. 
+
+```{r}
+# divide the dataset into a training 
+# and a testing set based on a 
+# random uniform number on fixed seed
+
+# set a "seed" for the random number generator
+set.seed(20170208)
+
+# create a series of random numbers from
+# 0 to 1 using a uniform distribution function
+Galton$group <- runif(length(Galton$parent), 
+                      min = 0, max = 1)
+summary(Galton)
+
+# group should look approximately uniform
+hist(Galton$group)
+
+# using the new random number, split
+# the file: use 90% to train and 10% to test
+Galton.train <- subset(Galton, group <= 0.90)
+Galton.test <- subset(Galton, group > 0.90)
+```
+
+### Look at some plots - visualize your data
+
+Let's look at a plot of the children's heights (Y-axis) versus the average height of the parents (X-axis).
+
+Now let's graph the training dataset (90%) and the test set data (the smaller 10%).
+
+```{r}
+# graph child on parent for training dataset
+plot(child ~ parent, data = Galton.train,
+     main = "Galton Training Dataset: Children vs Parents Heights")
+
+# graph child on parent for testing dataset
+plot(child ~ parent, data = Galton.test,
+     main = "Galton Test Dataset: Children vs Parents Heights")
+```
+
+### Perform (fit) linear regression model
+
+Let's do the regression now on the training set. Linear regression is performed with the R function "lm" and takes the form
+
+`object.name <- lm(y ~ x, data = data_set_name)`
+
+Let's do that now with the Galton data - using the training dataset.
+
+Save the regression output as `reg1`.
+
+Look at `reg1`.
+
+```{r}
+# linear regression of child height on 
+# mid-parent height in the training dataset
+reg1 <- lm(child ~ parent, data = Galton.train)
+reg1
+```
+
+The output is really simple. 
+
+Let's do a `summary()` of the regression output `summary(reg1)`.
+
+```{r}
+# model summary
+summary(reg1)
+
+# save model summary details
+sreg1 <- summary(reg1)
+```
+
+Much more detailed output.
+
+**Interpretation:** for each increase in parent height of 1 inch, the child height increases by 0.65 inches.
+
+Now the way that this is working is to estimate values for $\alpha$ and $\beta$ such that when you plug in your given independent variables, you get predicted dependent variables that are close to the observed values. In statistics we optimize this closeness by minimizing the sum-of-squared-residuals, that is 
+ 
+ \begin{equation}
+ \sum\limits_{i=1}^n (Y_{obs.i} - Y_{pred.i})^2
+ \end{equation}
+ 
+### Model evaluation
+ 
+So, let's look at how we did. 
+
+* First let's calculate the observed and predicted values in the training and testing datasets. Use the `predict()` function. 
+* Then compute the residuals (how far off was the model predictions from the original values) = original value - predicted value.
+
+```{r}
+# get predicted values in the training and testing dataset
+Galton.train$pred.child <- 
+  predict(reg1, newdata = Galton.train)
+Galton.test$pred.child <- 
+  predict(reg1, newdata=Galton.test)
+
+# calculate residuals in the training and testing dataset
+Galton.train$resid <- 
+  Galton.train$child - Galton.train$pred.child
+Galton.test$resid <- 
+  Galton.test$child - Galton.test$pred.child
+```
+
+Now that we have calculated these values, let's look at some simple plots. The Companion to Applied Regression (aka `car`) package, has some good functionality for this:
+
+```{r}
+library(car)
+
+#get the residual plots
+residualPlots(reg1)
+```
+
+Let's look at how well we do in the testing dataset. First let's plot the TEST data.
+
+### Base R approach
+
+```{r}
+#plot test dataset
+plot(child ~ parent, data = Galton.test)
+
+#overlay the regression line
+abline(a=23.85, b=0.65)
+```
+
+### ggplot2 approach
+
+```{r}
+library(ggplot2)
+ggplot(Galton.test, aes(x=parent, y=child)) +
+  geom_point() +
+  geom_smooth(method = "lm")
+```
+
+Now let's look at the residual plots:
+
+### Residuals versus "X"
+
+Do the residuals have any pattern with the value of the predictor?
+
+```{r}
+#plot residual versus X
+plot(resid ~ parent, data = Galton.test)
+
+#overlay the zero line
+abline(0,0)
+```
+
+### Residuals versus Predicted Values
+
+Do the residuals show any pattern with the predicted values?
+
+```{r}
+#plot residual v predicted
+plot(resid ~ pred.child, data = Galton.test)
+```
+
+One assumption in the statistical analysis of a linear regression are the hypothesis tests. We usually want to test a null hypothesis that the slope is 0, i.e., there is no relationship between y and x. We express this mathematically as: 
+
+\begin{equation}
+  H_0: \beta = 0
+\end{equation}
+
+We test a null hypothesis against an alternative hypothesis, ie, the slope is not equal to 0, i.e., there is some (positive or negative) relationship between y and x. We express this mathematically as:
+
+\begin{equation}
+  H_A: \beta \neq 0
+\end{equation}
+
+As you have seen in these data, the y-values do not line up as a perfect linear function of x, i.e. child height does not line up as a perfect linear function of parent height. There is an error that occurs for each observation. So we are really modeling a statistical model
+
+\begin{equation}
+  Y = \alpha + \beta x + \epsilon
+\end{equation}
+
+Recall from above that we estimate $\alpha$ and $\beta$ to minimize the sum of squared residuals.
+
+To do a statistical test on the slopes we have to make some assumptions. One of the assumptions is that $\epsilon$ ~ N(0, $\sigma^2$), that is, that the errors between the observed and predicted values of Y take on a normal distribution with mean of 0 and variance of $\sigma^2$.
+
+We can formally test this assumption, but we can also do a qq-plot which will give us a visual representation of the same. We get this plot as follows:
+
+### Histogram and Q-Q Plot of residuals
+
+Do the residuals look normally distributed (from the model fit to the training data)?
+
+```{r}
+# base R approach
+hist(Galton.train$resid)
+qqnorm(Galton.train$resid)
+
+# using car package qqPlot()
+# put in the model object
+qqPlot(reg1)
+```
+
+In this last plot (from `qqPlot(reg1)` using the `car` package) we have taken each residual and divided by the estimated standard deviation to create studentized residuals. We then rank them and calculate the percentile for each studentized residual, then create this graph. Of course, the car package is doing all of this under the hood, so to speak.
+
+To do the significance test, recall the summary of the linear regression model we had above.
+
+```{r, echo=FALSE}
+summary(reg1)
+```
+
+Note that there are two estimated coefficients, so our estimated line is 
+
+\begin{equation}
+  child = 23.85 + 0.65*parent
+\end{equation}
+
+You will also notice that next to the estimate, there is a column for standard error, a column for t-value, and column for p-value. We divide the estimate by the standard error to compute the t-value, which then has 829 degrees of freedom. For the slope estimate, we calculate the the p-value is  < 2e-16, i.e., highly significantly different from 0.
+
+At the bottom of summary you will notice a line for the F-statistics, which is the ratio of the mean-squared error of the model to the mean-squared error of the residuals. This has an F-distribution with 1 and 829 degrees of freedom, and takes on the value of 217.6 which has a p-value < 2e-16. Since this is a univariate regression you will see that if you take the value of the t-statistic for the slope and square it, that will give you the value of the F-statistic. 
+
+Isn't math fun?
+
+## Understanding Linear Regresson:  The Multivariate Case
+
+Suppose you have more than one independent variable that you think explains the dependent variable. That is instead of the simple univariate case of 
+
+\begin{equation}
+  y = \alpha + \beta x
+\end{equation}
+
+You have the multivariate case of
+
+\begin{equation}
+  y = \alpha + \beta_1 x_1 + \beta_2 x_2 + \beta_3 x_3
+\end{equation}
+
+As an example consider the PRESTIGE dataset (which comes with the `car` package). It consists of 102 observations and 6 variables as follows:
+
+**education:** The average number of years of education for occupational incumbents.  
+**income:** The average income of occupational incumbents, in dollars.  
+**women:** The percentage of women in the occupation.  
+**prestige:** The average prestige rating for the occupation.  
+**census:** The code of the occupation used in the survey.  
+**type:** Professional and managerial(prof), white collar(wc), blue collar(bc), or missing(NA).  
+
+We want to determine how the prestige of an occupation is related to average income, education (average number of years for incumbents), and the percentage of women in the occupation.
+
+Let's explore first:
+
+```{r}
+#explore the 5 m's for the Prestige dataset
+summary(Prestige)
+```
+
+Now let's see some plots:
+
+```{r}
+# produce a scatterplot matrix 
+# using the function from the car package
+# note: span adjusts the amount of smoothing
+car::scatterplotMatrix(~ prestige + income +
+                         education + women,
+                       span = 0.7,
+                       data = Prestige)
+```
+
+Hmmm...the variable income looks kind of wonky, for lack of a better term. So let's see if a transformation will help:
+
+Let's use `log2()` function to transform income.
+
+_NOTE: there are multiple options for the log() function:_
+
+* _`log()` is the "natural" log - base "e" (exp(1) = 2.718282...)_
+* _`log10()` is log - base 10 (think decibels or Richter Scale)_
+* _`log2()` is the "natural" log - base 2_
+
+```{r}
+car::scatterplotMatrix( ~ prestige + log2(income) +
+                          education + women,
+                        span = 0.7,
+                        data = Prestige)
+```
+
+Well, that looks a little better.
+
+Now let's see what the regression of prestige on income (logged), education, and women looks like:
+
+```{r}
+# let the regression rip
+prestige.mod1 <- lm(prestige ~ education + 
+                      log2(income) + women, 
+                    data = Prestige)
+
+#and see what we have
+summary(prestige.mod1)
+```
+
+-----------------------
+
+### OPTIONS for Regression Model Output Using Rmarkdown
+ 
+Some helpful packages for formatting regression models using Rmarkdown:
+
+* `sjPlot`
+    - [CRAN](https://cran.r-project.org/web/packages/sjPlot/index.html)
+    - [Package Website](https://strengejacke.github.io/sjPlot/articles/tab_model_estimates.html)
+* `gtsummary`
+    - [CRAN](https://cran.r-project.org/web/packages/gtsummary/)
+    - [Package Website](https://www.danieldsjoberg.com/gtsummary/articles/tbl_regression.html)
+* `apaTables`
+    - [CRAN](https://cran.r-project.org/web/packages/apaTables/)
+    - [Package Website](https://dstanley4.github.io/apaTables/articles/apaTables.html)
+ 
+### `sjPlot` package
+
+**Good News:** This works very well knitting to HTML - once created you can cut and paste from HTML into MS WORD DOC format.
+
+**Bad News:** This does NOT knit directly to DOC or PDF.
+
+```{r}
+library(sjPlot)
+sjPlot::tab_model(prestige.mod1)
+```
+
+### `apaTables` package
+
+**Bad News:** This creates a file OUTSIDE of the Rmarkdown file - the file is saved in your current R project directory (given the code below).
+
+**Good News:** The cool thing is the output file is ready to go in MS WORD (*.DOC) format!!
+ 
+```{r}
+library(apaTables)
+apa.reg.table(prestige.mod1, 
+              filename = "Table2_APA.doc", 
+              table.number = 2)
+```
+
+_Sneak Peek - image of WORD DOC table created_
+
+![Table 2 APA DOC file](Table2_APA_doc.png)
+
+
+### Rmarkdown friendly output with `gtsummary` package
+
+This is probably the MOST flexible since you can KNIT directly to HTML, DOC or PDF. See more details at [https://www.danieldsjoberg.com/gtsummary/articles/rmarkdown.html](https://www.danieldsjoberg.com/gtsummary/articles/rmarkdown.html).
+
+```{r}
+library(gtsummary)
+tbl_mod1 <- tbl_regression(prestige.mod1)
+tbl_mod1
+```
+
+From this output we see that if education increases by 1 year, then average prestige rating will increase by 3.73 units, with income and women held constant.
+
+For education we note that the p-value is < 2e-16.
+
+So we interpret that to reject the null hypothesis H_0: $\beta_1$ = 0.
+
+How do interpret the contributions of log2(income) and women?
+
+Another point to remark: the multiple R-squared is 0.84, indicating that 84% of the variability in average prestige rating is due to these three independent variables.
+
+Finally, the F-statistic of 165.4 is for testing the null hypothesis H_0: $\beta_1 = \beta_2 = \beta_3 = 0$. It is highly significant. (and that "squaring the t to get the F" trick only works for the univariate regression case...)
+
+Since the p-value for women does not reach the traditional significance level of 0.05, we might consider removing it from our model. Let's see what happens then...
+
+```{r}
+#run the model with only two predictors
+prestige.mod2 <- lm(prestige ~ education + 
+                      log2(income), data= Prestige)
+
+# look at the results
+summary(prestige.mod2)
+```
+
+### Rmarkdown friendly output with `gtsummary` package
+
+```{r}
+tbl_mod2 <- tbl_regression(prestige.mod2)
+tbl_mod2
+```
+
+Hmmmm....education and log2(income) remain highly significant, there is little reduction in R-squared, the model is still significant. 
+
+### `stargazer` package
+
+We can compare the results of these two analyses a little more cleanly using the `stargazer` package as follows:
+
+_**NOTE:** `stargazer` works well if you are "knitting" to either HTML or PDF. This will NOT work is you are "knitting" to WORD (DOCX) formats._
+
+_The code below is for the HTML output. Change to PDF of you want that output._
+
+```{r results="asis"}
+# compare the results of the two regression models
+stargazer(prestige.mod1, prestige.mod2, 
+          title="Comparison of 2 Regression outputs",
+          type = "html", align=TRUE)
+```
+
+### `gtsummary` merged tables
+
+This is a little friendlier to different knitted outputs but does not include the model comparison statistics.
+
+```{r}
+tbl_mod12 <-
+  tbl_merge(
+    tbls = list(tbl_mod1, tbl_mod2), 
+    tab_spanner = c("**Model 1**", "**Model 2**") 
+  )
+tbl_mod12
+```
+
+We conclude that we lose little by eliminating a predictor variable. This is also consistent with a principle of parsimony, also known as the KISS principle, or "Keep It Simple, Silly".
+
+Let's finish with some diagnostics. First the plots for the firs model with 3 independent variables:
+
+
+```{r}
+# diagnostics for the first model 
+# with 3 independent variables
+# function from car package
+residualPlots(prestige.mod1)
+```
+
+Notice that there is a non-zero trend for the variable women.
+
+And now the plots for the second model with 2 independent variables
+
+```{r}
+# diagnostics for the second model 
+# with 2 independent variables
+residualPlots(prestige.mod2)
+```
+
+Now the plots look really good, much better.
+
+Another diagnostic tool is the added variable plot, that is the additional benefit of variable *i* given that all of the others are in. In this particular plot we can also identify the most influential observations.
+
+```{r}
+#added variable plots - car function
+avPlots(prestige.mod1, id.n=2, id.cex=0.7)
+#id.n - identify n most influential observations
+#id.cex - controls the size of the dot
+```
+
+Let's run the qq-plot for model 1:
+
+```{r}
+# run the qq-plot
+qqPlot(prestige.mod1, id.n=3)
+# here, id.n identifies the n observations with the largest residuals in absolute value
+```
+
+Are there any outliers?
+
+We can also run a Bonferroni test for outliers.
+
+```{r}
+#run Bonferroni test for outliers
+outlierTest(prestige.mod1)
+```
+
+Are there any points that are of high influence?
+
+```{r}
+#identify highly influential points
+influenceIndexPlot(prestige.mod1, id.n=3)
+```
+
+NB. If there are points that are a) outliers AND b) highly influential, these have potential to change the inference. You should consider removing them.
+
+How do we make heads or tails out of the plots above? One way is with an influence plot.
+
+```{r}
+#make influence plot
+influencePlot(prestige.mod1, id.n=3)
+```
+
+Another diagnostic is to test for heteroskedasticity (i.e., the variance of the error term is not constant).
+
+```{r}
+#test for heteroskedasticity
+ncvTest(prestige.mod1)
+```
+
+We also want to look for multicollinearity, that is are some of our independent variables highly correlated. We do this by looking at the Variance Inflation Factor (VIF). A GVIF > 4 suggests collinearity.
+
+```{r}
+vif(prestige.mod1)
+```
+
+### `olsrr` package
+
+Another helpful R package for linear regression models is the `olsrr` package.
+
+We can use the `ols_vif_tol()` function to also compute the VIF's and tolerances (TOL) for each predictor in the model. TOL is the inverse of the VIF.
+
+```{r}
+library(olsrr)
+ols_vif_tol(prestige.mod1)
+```
+
+Another good measure of multicollinearity is the condition index. You want the condition index < 30. When you look at the output below, only look at the LAST LINE of the output.
+
+```{r}
+ols_eigen_cindex(prestige.mod1)
+```
+
+The condition index for Model 1 was 59 which is >> 30. When we removed income in Model 2 was the condition index lower? and look at the VIFs for Model 2.
+
+```{r}
+ols_vif_tol(prestige.mod2)
+ols_eigen_cindex(prestige.mod2)
+```
+
+It is lower, but the index is still > 30; but the VIFs are all < 2. This is probably due to education and income being correlated with each other - they are not independent of each other...
+
