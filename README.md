@@ -7,8 +7,8 @@
 
 ### Logistic Regression
 
-* [Intro to Logistic Regression Exercise](https://github.com/melindahiggins2000/N741_Spring2022_Regression/blob/main/logisticRegression_Rcode_2023.html)
-* [Logistic Regression RMD file](https://github.com/melindahiggins2000/N741_Spring2022_Regression/blob/main/logisticRegression_Rcode_2023.Rmd)
+* [Intro to Logistic Regression Exercise](https://melindahiggins2000.github.io/N741_Spring2022_Regression/logisticRegression_Rcode_2023.html)
+* [Logistic Regression RMD file](https://melindahiggins2000.github.io/N741_Spring2022_Regression/logisticRegression_Rcode_2023.Rmd)
 * [(for Training) HELP dataset for Logistic Regression Exercise](https://github.com/melindahiggins2000/N741_Spring2022_Regression/raw/main/help_set1_wide.RData)
 * [(for Testing) HELP dataset for Logistic Regression Exercise](https://github.com/melindahiggins2000/N741_Spring2022_Regression/raw/main/help_set2_wide.RData)
 
