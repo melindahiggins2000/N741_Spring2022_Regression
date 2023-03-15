@@ -1,5 +1,9 @@
 ## N741 - Spring 2023: Regression - Linear and Logistic
 
+### Intro to Supervised Modeling
+
+* [Intro to Supervised Models - Regression](https://melindahiggins2000.github.io/N741_Spring2022_Regression/SupervisedModeling_mkh_03142023.pdf)
+
 ### Linear Regression
 
 * [Intro to Linear Regression](https://melindahiggins2000.github.io/N741_Spring2022_Regression/Regression_Spring2023.html)
