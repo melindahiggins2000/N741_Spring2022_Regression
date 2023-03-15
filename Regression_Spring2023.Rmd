@@ -3,7 +3,9 @@ title: "Linear Regression"
 author: "Melinda Higgins and Vicki Hertzberg"
 date: "3/14/2023"
 output:
-  html_document: default
+  html_document:
+    toc: true
+    toc_float: true
   pdf_document: default
 editor_options:
   chunk_output_type: console

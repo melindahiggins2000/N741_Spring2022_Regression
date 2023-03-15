@@ -1,0 +1,477 @@
+---
+title: "Lesson - logistic regression"
+author: Melinda Higgins
+date: 03/14/2023
+output:
+  html_document:
+    toc: true
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(error = FALSE)
+knitr::opts_chunk$set(warning = FALSE)
+knitr::opts_chunk$set(message = FALSE)
+```
+
+## H.E.L.P. Dataset
+
+For this exercise, we’ll be working with the HELP (Health Evaluation and Linkage to Primary Care) dataset. You can learn more about this dataset at [https://nhorton.people.amherst.edu/sasr2/datasets.php](https://nhorton.people.amherst.edu/sasr2/datasets.php). This dataset is also used by Ken Kleinman and Nicholas J. Horton for their book “SAS and R: Data Management, Statistical Analysis, and Graphics” (which is another helpful textbook). Also see [https://melindahiggins2000.github.io/N736/helpdata.html](https://melindahiggins2000.github.io/N736/helpdata.html).
+
+The dataset is ready for you, just load `"help_set1_wide.RData"`.
+
+```{r }
+library(tidyverse)
+load("help_set1_wide.RData")
+helpdata <- helpdat.set1
+```
+
+## HELP Variables of Focus For This Exercise
+
+Let's focus on `homeless` as the main outcome variable
+which is dichotomous coded as 0 and 1. We'll use
+logistic regression to look at predicting whether someone
+was homeless or not using these variables:
+
+* female: female=1, male=0;
+* pss_fr: Perceived Social Support from Friends
+* pcs: Physical Component Score (SF-36 quality of life) 
+* indtot: Inventory of Drug Use
+
+Select these variables and save in a smaller dataset, `h1`.
+
+```{r }
+h1 <- helpdata %>%
+  dplyr::select(homeless, female, pcs, pss_fr, indtot)
+```
+
+## Look at each predictor with the outcome
+
+Let's look at the categorical predictors with the categorical outcome using a CrossTable() function - check for small cell counts. We can even run a chi-square test to get started evaluating the predictors (univariate).
+
+For the continuous-numeric predictors, let's look at comparing the predictors levels between those who are homeless versus those who are not (aka, via T-tests for a non-parametric equivalent).
+
+```{r}
+library(gmodels)
+CrossTable(x=h1$female, y=h1$homeless,
+           expected = FALSE,
+           prop.r = FALSE,
+           prop.c = TRUE,
+           prop.t = FALSE,
+           prop.chisq = FALSE,
+           chisq = TRUE,
+           format = "SPSS")
+```
+
+### check normality of the predictors
+
+As you can see in the histograms and normal probability plots below:
+
+* `pcs` is reasonably normal, perhaps slightly wider than a typical normal distribution, but ok;
+* `pss_fr` has a uniform distribution which has "positive" kurtosis (wider and flatter than a normal), but it is symmetric - let's not transform;
+* `indtot` has an obvious left skewness. We could transform this by:
+    - subtracting the value from the maximum of 45
+    - and then doing either a SQRT or LOG transform
+    - but let's leave it untransformed for now.
+
+```{r}
+library(car)
+
+hist(h1$pcs)
+car::qqPlot(h1$pcs)
+
+hist(h1$pss_fr)
+car::qqPlot(h1$pss_fr)
+
+hist(h1$indtot)
+car::qqPlot(h1$indtot)
+```
+
+### Comparison Table - using the `arsenal` package
+
+Put together a table comparing these predictors between homeless (1) or not homeless (0).
+
+For the moment, let's leave off the labels. I've included example code below to show how to customize your table and statistical tests:
+
+* for `female` run a chi-square test, display the number of missing values (if any), along with the count and percent of each category (column percents shown);
+* for `pss_fr` and `pcs` run an ANOVA (same as t-test for 2 groups), and display the number of missing values (if any), along with the mean and standard deviation; and
+* for `indtot` run a Kruskal-Wallis non-parametric test (same as a Mann-Whitney test for 2 groups), display the number of missing values (if any), along with the median and interquartile range, aka 1st and 3rd quartiles (Q1, Q3).
+
+```{r results = "asis"}
+library(arsenal)
+
+tab1 <- tableby(
+  as.factor(homeless) ~ 
+    chisq(as.factor(female), "Nmiss", "countpct") +
+    anova(pss_fr, "Nmiss", "meansd") + 
+    anova(pcs, "Nmiss", "meansd") +
+    kwt(indtot, "Nmiss", "median","q1q3"),
+  data = h1
+)
+
+summary(tab1)
+```
+
+### `GGally`- a fun package for making scatterplot matrix figures
+
+Since the outcome only has 2 categories, female only has 2 categories and the rest are continuous numeric variables, we can put them together into a 2-way scatterplot matrix which is useful for visualizing correlations and "cross-table" associations.
+
+First we will go ahead and create `female` and `homeless` as a factor (using the `as.factor()` function).
+
+```{r}
+h1 <- h1 %>%
+  mutate(female.f = as.factor(female),
+         homeless.f = as.factor(homeless))
+
+h2 <- h1 %>%
+  select(homeless.f, female.f, pss_fr, pcs, indtot)
+
+library(GGally)
+ggpairs(h2)
+```
+
+Run the plot again and use `homeless.f` as a factor to add color and see the grouping effects.
+
+```{r}
+ggpairs(h2, aes(color = homeless.f))
+```
+
+## Univariate Logistic Regression
+
+Let's run a logistic regression of `pss_fr` to predict the probability of being `homeless`. We'll also SAVE the predicted probabilities and the predicted group membership.
+
+We'll also look at different threshold cutoffs and then look at the tradeoffs between false positives (FP) and false negatives (FN), via the classification table (also called the confusion matrix or contingency table).
+
+We will also use get the ROC (receiver operating characteristic) curve and compute the AUC (area under the curve) to get an idea of the predictive accuracy of the model (similar to R2 for linear regression).
+
+```{r}
+glm1 <- glm(homeless.f ~ pss_fr, 
+            data=h2,
+            family=binomial)
+
+glm1
+summary(glm1)
+```
+
+See the raw coefficients
+
+```{r }
+coef(glm1)
+```
+
+Compute odds ratios = exp(coefficients)
+
+```{r }
+or1 <- exp(coef(glm1))
+or1
+```
+
+Get 95% confidence intervals for odds ratios
+
+```{r }
+or1.ci <- exp(confint(glm1))
+or1.ci
+```
+
+Put these pieces of output together
+
+```{r }
+data.frame(or1, or1.ci)
+```
+
+Add better column names
+
+```{r }
+or1.df <- data.frame(or1, or1.ci)
+names(or1.df) <- c("odds ratio", "95% CI LB", "95% CI UB")
+or1.df
+```
+
+Use `knitr::kable()` to make a better table
+
+```{r}
+knitr::kable(or1.df,
+             caption = "Odds Ratios from LogReg Model")
+```
+
+### Using `gtsummary::tbl_regression()`
+
+See example for how to set this up at [https://www.danieldsjoberg.com/gtsummary/articles/tbl_regression.html](https://www.danieldsjoberg.com/gtsummary/articles/tbl_regression.html).
+
+```{r}
+library(gtsummary)
+# format results into data frame with global p-values
+glm1 %>%
+  tbl_regression(
+    exponentiate = TRUE,
+    pvalue_fun = ~ style_pvalue(.x, digits = 2)) %>%
+  add_global_p() %>%
+  bold_p(t = 0.10) %>%
+  bold_labels() %>%
+  italicize_levels()
+```
+
+## Model Predictions - original data (training data)
+
+Get predicted probability of being homeless.
+
+```{r }
+glm1.predict <- predict(glm1, newdata=h2,
+                        type="response")
+```
+
+Plot probability of being homeless by the continuous pss_fr predictor.
+
+```{r }
+plot(h2$pss_fr, glm1.predict)
+abline(0.5, 0, col = "red")
+```
+
+can also make plot using `ggplot2`
+
+```{r }
+h2.predict1 <- cbind(h2, glm1.predict)
+library(ggplot2)
+ggplot(h2.predict1, aes(pss_fr, glm1.predict)) +
+  geom_point() +
+  geom_smooth(color = "blue") +
+  geom_hline(yintercept = 0.5, color = "red") 
+```
+
+Look at how well or poorly the model does predicting homelessness with different cutoff probabilities. Each cutoff will produce different FN and FP tradeoffs. The cutoff probability will range from >0 to <1.
+
+The ROWS show the ORIGINAL category (0=not homeless, 1=homeless). The COLUMNS show whether the model predicted homeless correct (TRUE) or not (FALSE).
+
+For the 1st cutoff of 0.5, there are:
+
+* 111 true negatives TN (model=FALSE, for not homeless)
+* 80 false negatives FN (model=FALSE, for homeless)
+* 20 false positives FP (model=TRUE, for not homeless)
+* 17 true positives TP (model=TRUE, for homeless) 
+
+and then moving the cutpoint down to 0.4, decreases the FN but increases the FP.
+
+```{r }
+#confusion matrix using cutpoint of 0.5
+table(h2$homeless.f, glm1.predict > 0.5)
+
+#confusion matrix using cutpoint of 0.4
+table(h2$homeless.f, glm1.predict > 0.4)
+```
+
+### OPTIONAL - try the `caret` package
+
+The `caret` package has a lot of helpful functions, but let's look at the `confusionMatrix()` function to get detailed output statistics associated with a contingency table. Learn more at:
+
+* [CRAN](https://cran.r-project.org/web/packages/caret/index.html)
+* [caret BOOK](https://topepo.github.io/caret/)
+
+Also check out this cool website [https://statpages.info/ctab2x2.html](https://statpages.info/ctab2x2.html) for all the stats you can compute from 2-x-2 tables. See if you can replicate these stats with their online calculator.
+
+```{r}
+library(caret)
+```
+
+Save table output where you list predicted first, then original values.
+
+```{r}
+tab1 <- table(glm1.predict > 0.5, 
+              h2$homeless.f == 1)
+caret::confusionMatrix(tab1)
+```
+
+### ROC Curve and the AUC
+
+Rather than doing trial and error to find the sweet spot, if we run through a range of cutoffs from over 0.0 to just under 1.0, we can look at the tradeoffs and plot this receiver operating curve. The ROC is a plot of the:
+
+* Specificity = True Positive Rate (TP)
+* 1-Sensitivity = False Positive Rate (FP)
+
+Ideally, we'd like to see the curve as close to the upper left quadrant of the 0-1, 0-1 square plot space. There is a 45 degree diagonal line drawn through the middle which represents an AUC of 0.5 indicating the model does no better than flipping a coin (50/50) to get the outcome category correct.
+
+Let's compute the AUC and plot an ROC.
+
+```{r }
+library(ROCR)
+p <- predict(glm1, newdata=h2, 
+             type="response")
+pr <- prediction(p, as.numeric(h2$homeless.f))
+prf <- performance(pr, measure = "tpr", x.measure = "fpr")
+plot(prf)
+abline(0, 1, col = "red")
+```
+
+Compute AUC, area under the curve also called the C-statistic.
+
+```{r }
+auc <- performance(pr, measure = "auc")
+auc <- auc@y.values[[1]]
+auc
+```
+
+ideally you want AUC as close to 1 as possible
+AUC > 0.9 is great
+AUC > 0.8 is good
+AUC > 0.7 is ok
+AUC < 0.7 are not very good
+AUC around 0.5 is no better than flipping a fair coin
+which is a useless model
+also - add title to plot with AUC in title
+
+```{r }
+plot(prf,
+     main = paste("ROC Curve, AUC = ", round(auc, 3)))
+abline(0, 1, col="red")
+```
+
+## Multivariate Model - with 4 predictors entered together
+
+```{r }
+glm3 <- glm(homeless.f ~ female.f + pss_fr + pcs + indtot, 
+            data=h2, family=binomial)
+
+glm3
+summary(glm3)
+coef(glm3)
+exp(coef(glm3))
+exp(confint(glm3))
+```
+
+Put pieces together and look at predicted values using a cutoff of 0.5.
+
+```{r }
+data.frame(exp(coef(glm3)),
+           exp(confint(glm3)))
+
+glm3.predict <- predict(glm3, newdata=h2,
+                        type="response")
+
+gmodels::CrossTable(h2$homeless.f, glm3.predict > 0.5,
+                    prop.r = FALSE,
+                    prop.c = FALSE,
+                    prop.t = TRUE)
+```
+
+FYI: See [https://www.r-bloggers.com/how-to-perform-a-logistic-regression-in-r/](https://www.r-bloggers.com/how-to-perform-a-logistic-regression-in-r/)
+
+Make an ROC curve for model `glm3`
+
+```{r }
+library(ROCR)
+p <- predict(glm3, newdata=h2, 
+             type="response")
+pr <- prediction(p, as.numeric(h2$homeless.f))
+prf <- performance(pr, measure = "tpr", x.measure = "fpr")
+plot(prf)
+abline(0, 1, col="red")
+
+auc3 <- performance(pr, measure = "auc")
+auc3 <- auc3@y.values[[1]]
+auc3
+```
+
+add title to plot with AUC in title
+
+```{r }
+plot(prf,
+     main = paste("ROC Curve, AUC = ", round(auc3, 3)))
+abline(0, 1, col="red")
+```
+
+Compare 2 models: 
+
+* `glm1` with `pss_fr` 
+* `glm3` with `female` + `pss_fr` + `pcs` + `indtot`
+
+Note: lower AIC and BIC is better and higher AUC is better
+
+```{r }
+AIC(glm1, glm3)
+BIC(glm1, glm3)
+c(auc, auc3)
+```
+
+For nested models we can compare `glm3` and `glm1`: note - test options are “Rao”, “LRT”, “Chisq”, “F”, “Cp”, see help("anova.glm")
+
+```{r }
+anova(glm1, glm3, test = "Chisq")
+anova(glm1, glm3, test = "LRT")
+anova(glm1, glm3, test = "Rao")
+
+at1 <- anova(glm1, glm3, test = "Chisq")
+```
+
+pull out the p-values
+
+```{r }
+at1$`Pr(>Chi)`[2]
+```
+
+### Merge gtsummary tables
+
+See example at [https://www.danieldsjoberg.com/gtsummary/articles/gallery.html#side-by-side](https://www.danieldsjoberg.com/gtsummary/articles/gallery.html#side-by-side).
+
+```{r}
+glm1_tab <- glm1 %>%
+  tbl_regression(exponentiate = TRUE)
+glm3_tab <- glm3 %>%
+  tbl_regression(exponentiate = TRUE)
+tbl_merge(list(glm1_tab, glm3_tab),
+          tab_spanner = c("Unadjusted", 
+                          "Adjusted"))
+```
+
+### Other fun options - plot of ORs
+
+See `sjplot` package, [https://strengejacke.github.io/sjPlot/articles/plot_model_estimates.html](https://strengejacke.github.io/sjPlot/articles/plot_model_estimates.html)
+
+```{r }
+library(sjPlot)
+sjPlot::plot_model(glm3, vline.color = "red")
+```
+
+Notice that scale is a log scale on X-axis, see [https://andrewpwheeler.com/2013/10/26/odds-ratios-need-to-be-graphed-on-log-scales/](https://andrewpwheeler.com/2013/10/26/odds-ratios-need-to-be-graphed-on-log-scales/)
+
+Other articles to explore - packages for presenting model summaries:
+
+* [https://cran.r-project.org/web/packages/sjPlot/vignettes/tab_model_estimates.html](https://cran.r-project.org/web/packages/sjPlot/vignettes/tab_model_estimates.html)
+
+* [https://www.r-bloggers.com/2018/05/elegant-regression-results-tables-and-plots-in-r-the-finalfit-package/](https://www.r-bloggers.com/2018/05/elegant-regression-results-tables-and-plots-in-r-the-finalfit-package/)
+
+* [http://www.danieldsjoberg.com/gtsummary/articles/gallery.html](http://www.danieldsjoberg.com/gtsummary/articles/gallery.html)
+
+### Also check model against "test" dataset
+
+Load help dataset 2 (the other random half of the original HELP dataset).
+
+```{r}
+load("help_set2_wide.RData")
+h1test <- helpdat.set2 %>%
+  dplyr::select(homeless, female, pcs, pss_fr, indtot)
+
+h1test <- h1test %>%
+  mutate(female.f = as.factor(female),
+         homeless.f = as.factor(homeless))
+
+h2test <- h1test %>%
+  select(homeless.f, female.f, pss_fr, pcs, indtot)
+
+library(ROCR)
+p <- predict(glm3, newdata=h2test, 
+             type="response")
+pr <- prediction(p, as.numeric(h2test$homeless.f))
+prf <- performance(pr, measure = "tpr", x.measure = "fpr")
+plot(prf)
+abline(0, 1, col="red")
+
+auc3 <- performance(pr, measure = "auc")
+auc3 <- auc3@y.values[[1]]
+auc3
+
+plot(prf,
+     main = paste("ROC Curve, AUC = ", round(auc3, 3)))
+abline(0, 1, col="red")
+```
+
