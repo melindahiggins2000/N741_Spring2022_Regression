@@ -1,4 +1,4 @@
-## N741 - Spring 2023: Regression - Linear and Logistic
+## N741 - Spring 2023: Supervised Machine Learning - Linear and Logistic Regression
 
 ### Intro to Supervised Modeling
 
